@@ -20,6 +20,9 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.arthenica.ffmpegkit.FFmpegKit
+import com.github.libretube.RetrofitInstance.url
+import com.google.android.exoplayer2.util.NotificationUtil.createNotificationChannel
+import gen._base._base_java__rjava_resources.srcjar.R.id.title
 import java.io.File
 
 var IS_DOWNLOAD_RUNNING = false
@@ -27,6 +30,7 @@ var IS_DOWNLOAD_RUNNING = false
 class DownloadService : Service() {
     val TAG = "DownloadService"
     private var downloadId: Long = -1
+    private lateinit var downloadType: String
     private lateinit var videoId: String
     private lateinit var videoUrl: String
     private lateinit var audioUrl: String
@@ -44,6 +48,7 @@ class DownloadService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        downloadType = intent?.getStringExtra("downloadType")!!
         videoId = intent?.getStringExtra("videoId")!!
         videoUrl = intent.getStringExtra("videoUrl")!!
         audioUrl = intent.getStringExtra("audioUrl")!!
@@ -95,7 +100,8 @@ class DownloadService : Service() {
     }
 
     private fun downloadManager() {
-        val path = applicationContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+        //val path = applicationContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+        val path = Environment.getExternalStoragePublicDirectory(DIRECTORY_DOWNLOADS)
         val folder_main = ".tmp"
         val f = File(path, folder_main)
         if (!f.exists()) {
@@ -108,46 +114,29 @@ class DownloadService : Service() {
         }
         audioDir = File(f, "$videoId-audio")
         videoDir = File(f, "$videoId-video")
-        try {
-            Log.e(TAG, "Directory make")
-            registerReceiver(
-                onDownloadComplete,
-                IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-            )
-            val request: DownloadManager.Request =
-                DownloadManager.Request(Uri.parse(videoUrl))
-                    .setTitle("Video") // Title of the Download Notification
-                    .setDescription("Downloading") // Description of the Download Notification
-                    .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE) // Visibility of the download Notification
-                    .setDestinationUri(Uri.fromFile(videoDir))
-                    .setAllowedOverMetered(true) // Set if download is allowed on Mobile network
-                    .setAllowedOverRoaming(true) //
-            val downloadManager: DownloadManager =
-                applicationContext.getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-            downloadId = downloadManager.enqueue(request)
-            if (audioUrl == "") {
-                downloadId = 0L
-            }
-        } catch (e: IllegalArgumentException) {
-            Log.e(TAG, "download error $e")
-            try {
-                downloadId = 0L
-                val request: DownloadManager.Request =
-                    DownloadManager.Request(Uri.parse(audioUrl))
-                        .setTitle("Audio") // Title of the Download Notification
-                        .setDescription("Downloading") // Description of the Download Notification
-                        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE) // Visibility of the download Notification
-                        .setDestinationUri(Uri.fromFile(audioDir))
-                        .setAllowedOverMetered(true) // Set if download is allowed on Mobile network
-                        .setAllowedOverRoaming(true) //
-                val downloadManager: DownloadManager =
-                    applicationContext.getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-                downloadManager.enqueue(request)
-            } catch (e: Exception) {
-                Log.e(TAG, "audio download error $e")
-                stopService(Intent(this, DownloadService::class.java))
-            }
+        registerReceiver(
+            onDownloadComplete,
+            IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+        )
+        if (downloadType == "audio") {
+            downloadManagerRequest("Audio", audioDir, audioUrl)
+        } else {
+            downloadManagerRequest("Video", videoDir, videoUrl)
         }
+    }
+
+    private fun downloadManagerRequest(downloadTitle: String, downloadDir: File, downloadUrl: String) {
+        val request: DownloadManager.Request =
+            DownloadManager.Request(Uri.parse(downloadUrl))
+                .setTitle(downloadTitle) // Title of the Download Notification
+                .setDescription("Downloading") // Description of the Download Notification
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE) // Visibility of the download Notification
+                .setDestinationUri(Uri.fromFile(downloadDir))
+                .setAllowedOverMetered(true) // Set if download is allowed on Mobile network
+                .setAllowedOverRoaming(true) //
+        val downloadManager: DownloadManager =
+            applicationContext.getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+        downloadId = downloadManager.enqueue(request)
     }
 
     private val onDownloadComplete: BroadcastReceiver = object : BroadcastReceiver() {
@@ -156,19 +145,9 @@ class DownloadService : Service() {
             val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
             // Checking if the received broadcast is for our enqueued download by matching download id
             if (downloadId == id) {
-                downloadId = 0L
                 try {
-                    val request: DownloadManager.Request =
-                        DownloadManager.Request(Uri.parse(audioUrl))
-                            .setTitle("Audio") // Title of the Download Notification
-                            .setDescription("Downloading") // Description of the Download Notification
-                            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE) // Visibility of the download Notification
-                            .setDestinationUri(Uri.fromFile(audioDir))
-                            .setAllowedOverMetered(true) // Set if download is allowed on Mobile network
-                            .setAllowedOverRoaming(true) //
-                    val downloadManager: DownloadManager =
-                        applicationContext.getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-                    downloadManager.enqueue(request)
+                    downloadManagerRequest("Audio", audioDir, audioUrl)
+                    downloadId = 0L
                 } catch (e: Exception) {
                 }
             } else if (downloadId == 0L) {
@@ -234,12 +213,6 @@ class DownloadService : Service() {
                 ) {
                     // CALLED WHEN SESSION GENERATES STATISTICS
                     Log.e(TAG + "stat", it.time.toString())
-                    /*val progress = it.time/(10*duration!!)
-                    if (progress<1){
-                        notification
-                            .setProgress(progressMax, progress.toInt(), false)
-                        service.notify(1,notification.build())
-                    }*/
                 }
             }
         }

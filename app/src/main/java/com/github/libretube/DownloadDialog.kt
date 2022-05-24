@@ -19,6 +19,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class DownloadDialog : DialogFragment() {
     private val TAG = "DownloadDialog"
+    var downloadType = "video"
     var vidName = arrayListOf<String>()
     var vidUrl = arrayListOf<String>()
     var audioName = arrayListOf<String>()
@@ -88,14 +89,30 @@ class DownloadDialog : DialogFragment() {
                 extension = radio.text.toString()
                 Log.d(TAG, extension)
             }
+            val downloadTypeRadio = view.findViewById<RadioGroup>(R.id.download_type)
+            downloadTypeRadio.setOnCheckedChangeListener { group, checkedId ->
+                val selectedType = view.findViewById<RadioButton>(checkedId).text.toString()
+                when (selectedType) {
+                    getString(R.string.video) -> {
+                        radioGroup.visibility = View.VISIBLE
+                        videoSpinner.visibility = View.VISIBLE
+                        downloadType = "video"
+                    }
+                    getString(R.string.audio) -> {
+                        radioGroup.visibility  = View.GONE
+                        videoSpinner.visibility = View.GONE
+                        downloadType = "audio"
+                    }
+                }
+            }
             view.findViewById<Button>(R.id.download).setOnClickListener {
                 val intent = Intent(context, DownloadService::class.java)
+                intent.putExtra("downloadType", downloadType)
                 intent.putExtra("videoId", videoId)
                 intent.putExtra("videoUrl", vidUrl[selectedVideo])
                 intent.putExtra("audioUrl", audioUrl[selectedAudio])
                 intent.putExtra("duration", duration)
                 intent.putExtra("extension", extension)
-                // intent.putExtra("command","-y -i ${response.videoStreams[which].url} -i ${response.audioStreams!![0].url} -c copy ${Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)}/${videoId}.mkv")
                 context?.startService(intent)
                 dismiss()
             }
