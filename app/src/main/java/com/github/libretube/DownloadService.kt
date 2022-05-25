@@ -118,7 +118,6 @@ class DownloadService : Service() {
             downloadManagerRequest("Audio", audioDir, audioUrl)
         } else {
             videoDownloadId = downloadManagerRequest("Video", videoDir, videoUrl)
-            audioDownloadId = downloadManagerRequest("Audio", audioDir, audioUrl)
         }
     }
 
@@ -144,9 +143,10 @@ class DownloadService : Service() {
         override fun onReceive(context: Context, intent: Intent) {
             val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
             if (downloadType == "video") {
-                if (id == videoDownloadId) videoDownloadId = 0L
-                if (id == audioDownloadId) audioDownloadId = 0L
-                if (audioDownloadId == 0L && videoDownloadId == 0L) {
+                if (id == videoDownloadId) {
+                    audioDownloadId = downloadManagerRequest("Audio", audioDir, audioUrl)
+                }
+                if (id == audioDownloadId) {
                     convertDownloads()
                     IS_DOWNLOAD_RUNNING = false
                     stopForeground(true)
