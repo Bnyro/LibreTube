@@ -83,8 +83,8 @@ class DownloadDialog : DialogFragment() {
 
                 override fun onNothingSelected(parent: AdapterView<*>?) {}
             }
-            val radioGroup = view.findViewById<RadioGroup>(R.id.radioGp)
-            radioGroup.setOnCheckedChangeListener { group, checkedId ->
+            val extensionRadio = view.findViewById<RadioGroup>(R.id.radioGp)
+            extensionRadio.setOnCheckedChangeListener { group, checkedId ->
                 val radio: RadioButton = view.findViewById(checkedId)
                 extension = radio.text.toString()
                 Log.d(TAG, extension)
@@ -94,12 +94,12 @@ class DownloadDialog : DialogFragment() {
                 val selectedType = view.findViewById<RadioButton>(checkedId).text.toString()
                 when (selectedType) {
                     getString(R.string.video) -> {
-                        radioGroup.visibility = View.VISIBLE
+                        extensionRadio.visibility = View.VISIBLE
                         videoSpinner.visibility = View.VISIBLE
                         downloadType = "video"
                     }
                     getString(R.string.audio) -> {
-                        radioGroup.visibility  = View.GONE
+                        extensionRadio.visibility = View.GONE
                         videoSpinner.visibility = View.GONE
                         downloadType = "audio"
                     }
