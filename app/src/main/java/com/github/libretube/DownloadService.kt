@@ -1,16 +1,12 @@
 package com.github.libretube
 
-import android.app.DownloadManager
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.app.Service
+import android.app.*
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
+import android.media.*
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -19,6 +15,8 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import java.io.File
+import java.io.FileInputStream
+import java.nio.ByteBuffer
 
 var IS_DOWNLOAD_RUNNING = false
 
@@ -143,13 +141,91 @@ class DownloadService : Service() {
                     audioDownloadId = downloadManagerRequest("Audio", audioDir, audioUrl)
                 }
                 if (id == audioDownloadId) {
-                    //convertDownloads()
+                        convertDownloads()
                     IS_DOWNLOAD_RUNNING = false
                     stopForeground(true)
                     stopService(Intent(this@DownloadService, DownloadService::class.java))
                 }
             }
         }
+    }
+
+    private fun convertDownloads(){
+        val libreTube = File(
+            Environment.getExternalStoragePublicDirectory(DIRECTORY_DOWNLOADS), "LibreTube"
+        )
+        if (!libreTube.exists()) {
+            libreTube.mkdirs()
+            Log.e(TAG, "libreTube Directory make")
+        } else {
+            Log.e(TAG, "libreTube Directory already have")
+        }
+
+        val outFile = File(libreTube, videoId)
+
+        val videoExtractor = MediaExtractor()
+        val videoInputStream = FileInputStream(videoDir)
+        videoExtractor.setDataSource(videoInputStream.fd)
+        videoExtractor.selectTrack(0) // Assuming only one track per file. Adjust code if this is not the case.
+        val videoFormat = videoExtractor.getTrackFormat(0)
+
+        val audioExtractor = MediaExtractor()
+        val audioInputStream = FileInputStream(audioDir)
+        audioExtractor.setDataSource(audioInputStream.fd)
+        audioExtractor.selectTrack(0) // Assuming only one track per file. Adjust code if this is not the case.
+        val audioFormat = audioExtractor.getTrackFormat(0)
+
+        // Init muxer
+        val muxer = MediaMuxer(outFile.toString(), MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        val videoIndex = muxer.addTrack(videoFormat)
+        val audioIndex = muxer.addTrack(audioFormat)
+        muxer.start()
+
+        // Prepare buffer for copying
+        val maxChunkSize = 1024 * 1024
+        val buffer = ByteBuffer.allocate(maxChunkSize)
+        val bufferInfo = MediaCodec.BufferInfo()
+
+        // Copy Video
+        while (true) {
+            val chunkSize = videoExtractor.readSampleData(buffer, 0)
+
+            if (chunkSize > 0) {
+                bufferInfo.presentationTimeUs = videoExtractor.sampleTime
+                bufferInfo.flags = MediaCodec.BUFFER_FLAG_SYNC_FRAME
+                bufferInfo.size = chunkSize
+
+                muxer.writeSampleData(videoIndex, buffer, bufferInfo)
+
+                videoExtractor.advance()
+
+            } else {
+                break
+            }
+        }
+
+        // Copy audio
+        while (true) {
+            val chunkSize = audioExtractor.readSampleData(buffer, 0)
+
+            if (chunkSize >= 0) {
+                bufferInfo.presentationTimeUs = audioExtractor.sampleTime
+                bufferInfo.flags = MediaCodec.BUFFER_FLAG_SYNC_FRAME
+                bufferInfo.size = chunkSize
+
+                muxer.writeSampleData(audioIndex, buffer, bufferInfo)
+                audioExtractor.advance()
+            } else {
+                break
+            }
+        }
+
+        // Cleanup
+        muxer.stop()
+        muxer.release()
+
+        videoExtractor.release()
+        audioExtractor.release()
     }
 
     private fun createNotificationChannel() {
