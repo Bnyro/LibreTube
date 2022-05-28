@@ -8,7 +8,6 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Context.DOWNLOAD_SERVICE
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
@@ -19,9 +18,6 @@ import android.os.Environment.DIRECTORY_DOWNLOADS
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
-import androidx.core.app.ServiceCompat.stopForeground
-import com.arthenica.ffmpegkit.FFmpegKit
 import java.io.File
 
 var IS_DOWNLOAD_RUNNING = false
@@ -147,76 +143,12 @@ class DownloadService : Service() {
                     audioDownloadId = downloadManagerRequest("Audio", audioDir, audioUrl)
                 }
                 if (id == audioDownloadId) {
-                    convertDownloads()
+                    //convertDownloads()
                     IS_DOWNLOAD_RUNNING = false
                     stopForeground(true)
                     stopService(Intent(this@DownloadService, DownloadService::class.java))
                 }
             }
-        }
-    }
-
-    private fun convertDownloads() {
-        val libreTube = File(
-            Environment.getExternalStoragePublicDirectory(DIRECTORY_DOWNLOADS), "LibreTube"
-        )
-        if (!libreTube.exists()) {
-            libreTube.mkdirs()
-            Log.e(TAG, "libreTube Directory make")
-        } else {
-            Log.e(TAG, "libreTube Directory already have")
-        }
-        var command: String = when {
-            videoUrl == "" -> {
-                "-y -i $audioDir -c copy $libreTube/$videoId-audio$extension"
-            }
-            audioUrl == "" -> {
-                "-y -i $videoDir -c copy $libreTube/$videoId-video$extension"
-            }
-            else -> {
-                "-y -i $videoDir -i $audioDir -c copy $libreTube/${videoId}$extension"
-            }
-        }
-        notification.setContentTitle("Muxing")
-        FFmpegKit.executeAsync(
-            command,
-            { session ->
-                val state = session.state
-                val returnCode = session.returnCode
-                // CALLED WHEN SESSION IS EXECUTED
-                Log.d(
-                    TAG,
-                    String.format(
-                        "FFmpeg process exited with state %s and rc %s.%s",
-                        state,
-                        returnCode,
-                        session.failStackTrace
-                    )
-                )
-                val path =
-                    applicationContext.getExternalFilesDir(DIRECTORY_DOWNLOADS)
-                val folder_main = ".tmp"
-                val f = File(path, folder_main)
-                f.deleteRecursively()
-                if (returnCode.toString() != "0") {
-                    var builder = NotificationCompat.Builder(this@DownloadService, "failed")
-                        .setSmallIcon(R.drawable.ic_download)
-                        .setContentTitle(resources.getString(R.string.downloadfailed))
-                        .setContentText("failure")
-                        .setPriority(NotificationCompat.PRIORITY_HIGH)
-                    createNotificationChannel()
-                    with(NotificationManagerCompat.from(this@DownloadService)) {
-                        // notificationId is a unique int for each notification that you must define
-                        notify(69, builder.build())
-                    }
-                }
-            }, {
-            // CALLED WHEN SESSION PRINTS LOGS
-            Log.e(TAG, it.message.toString())
-        }
-        ) {
-            // CALLED WHEN SESSION GENERATES STATISTICS
-            Log.e(TAG + "stat", it.time.toString())
         }
     }
 
