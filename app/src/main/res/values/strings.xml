@@ -116,4 +116,6 @@
     <string name="piped">Piped</string>
     <string name="youtube">YouTube</string>
     <string name="playOnBackground">Play on background</string>
+    <string name="video">Video</string>
+    <string name="audio">Audio</string>
 </resources>

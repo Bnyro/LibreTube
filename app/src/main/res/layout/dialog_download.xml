@@ -16,6 +16,26 @@
         android:textSize="20sp"
         />
 
+    <RadioGroup
+        android:id="@+id/download_type"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_margin="8dp">
+    <RadioButton
+        android:id="@+id/download_type_video"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginRight="20dp"
+        android:text="@string/video"
+        android:checked="true"/>
+    <RadioButton
+        android:id="@+id/download_type_audio"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/audio"/>
+    </RadioGroup>
+
     <Spinner
         android:id="@+id/video_spinner"
         android:layout_width="match_parent"
@@ -31,16 +51,18 @@
         android:id="@+id/radioGp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:orientation="horizontal"
         android:layout_margin="8dp">
         <RadioButton
             android:id="@+id/mkv"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginRight="20dp"
             android:text=".mkv"
             android:checked="true"/>
         <RadioButton
             android:id="@+id/mp4"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text=".mp4"/>
     </RadioGroup>

@@ -1,16 +1,12 @@
 package com.github.libretube
 
-import android.app.DownloadManager
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.app.Service
+import android.app.*
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
+import android.media.*
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -18,19 +14,21 @@ import android.os.Environment.DIRECTORY_DOWNLOADS
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
-import com.arthenica.ffmpegkit.FFmpegKit
 import java.io.File
+import java.io.FileInputStream
+import java.nio.ByteBuffer
 
 var IS_DOWNLOAD_RUNNING = false
 
 class DownloadService : Service() {
     val TAG = "DownloadService"
-    private var downloadId: Long = -1
+    private lateinit var downloadType: String
     private lateinit var videoId: String
     private lateinit var videoUrl: String
     private lateinit var audioUrl: String
     private lateinit var extension: String
+    private var videoDownloadId: Long = -1
+    private var audioDownloadId: Long = -1
     private var duration: Int = 0
 
     // private lateinit var command: String
@@ -44,6 +42,7 @@ class DownloadService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        downloadType = intent?.getStringExtra("downloadType")!!
         videoId = intent?.getStringExtra("videoId")!!
         videoUrl = intent.getStringExtra("videoUrl")!!
         audioUrl = intent.getStringExtra("audioUrl")!!
@@ -61,11 +60,7 @@ class DownloadService : Service() {
                 chan.lockscreenVisibility = Notification.VISIBILITY_PRIVATE
                 service.createNotificationChannel(chan)
                 "service"
-            } else {
-                // If earlier version channel ID is not used
-                // https://developer.android.com/reference/android/support/v4/app/NotificationCompat.Builder.html#NotificationCompat.Builder(android.content.Context)
-                ""
-            }
+            } else { "" }
         var pendingIntent: PendingIntent? = null
         pendingIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_MUTABLE)
@@ -95,7 +90,8 @@ class DownloadService : Service() {
     }
 
     private fun downloadManager() {
-        val path = applicationContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+        // val path = applicationContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+        val path = Environment.getExternalStoragePublicDirectory(DIRECTORY_DOWNLOADS)
         val folder_main = ".tmp"
         val f = File(path, folder_main)
         if (!f.exists()) {
@@ -108,141 +104,128 @@ class DownloadService : Service() {
         }
         audioDir = File(f, "$videoId-audio")
         videoDir = File(f, "$videoId-video")
-        try {
-            Log.e(TAG, "Directory make")
-            registerReceiver(
-                onDownloadComplete,
-                IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-            )
-            val request: DownloadManager.Request =
-                DownloadManager.Request(Uri.parse(videoUrl))
-                    .setTitle("Video") // Title of the Download Notification
-                    .setDescription("Downloading") // Description of the Download Notification
-                    .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE) // Visibility of the download Notification
-                    .setDestinationUri(Uri.fromFile(videoDir))
-                    .setAllowedOverMetered(true) // Set if download is allowed on Mobile network
-                    .setAllowedOverRoaming(true) //
-            val downloadManager: DownloadManager =
-                applicationContext.getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-            downloadId = downloadManager.enqueue(request)
-            if (audioUrl == "") {
-                downloadId = 0L
-            }
-        } catch (e: IllegalArgumentException) {
-            Log.e(TAG, "download error $e")
-            try {
-                downloadId = 0L
-                val request: DownloadManager.Request =
-                    DownloadManager.Request(Uri.parse(audioUrl))
-                        .setTitle("Audio") // Title of the Download Notification
-                        .setDescription("Downloading") // Description of the Download Notification
-                        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE) // Visibility of the download Notification
-                        .setDestinationUri(Uri.fromFile(audioDir))
-                        .setAllowedOverMetered(true) // Set if download is allowed on Mobile network
-                        .setAllowedOverRoaming(true) //
-                val downloadManager: DownloadManager =
-                    applicationContext.getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-                downloadManager.enqueue(request)
-            } catch (e: Exception) {
-                Log.e(TAG, "audio download error $e")
-                stopService(Intent(this, DownloadService::class.java))
-            }
+        registerReceiver(
+            onDownloadComplete,
+            IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+        )
+        if (downloadType == "audio") {
+            downloadManagerRequest("Audio", audioDir, audioUrl)
+        } else {
+            videoDownloadId = downloadManagerRequest("Video", videoDir, videoUrl)
         }
+    }
+
+    private fun downloadManagerRequest(
+        downloadTitle: String,
+        downloadDir: File,
+        downloadUrl: String
+    ): Long {
+        val request: DownloadManager.Request =
+            DownloadManager.Request(Uri.parse(downloadUrl))
+                .setTitle(downloadTitle) // Title of the Download Notification
+                .setDescription("Downloading") // Description of the Download Notification
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE) // Visibility of the download Notification
+                .setDestinationUri(Uri.fromFile(downloadDir))
+                .setAllowedOverMetered(true) // Set if download is allowed on Mobile network
+                .setAllowedOverRoaming(true) //
+        val downloadManager: DownloadManager =
+            applicationContext.getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+        return downloadManager.enqueue(request)
     }
 
     private val onDownloadComplete: BroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            // Fetching the download id received with the broadcast
             val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
-            // Checking if the received broadcast is for our enqueued download by matching download id
-            if (downloadId == id) {
-                downloadId = 0L
-                try {
-                    val request: DownloadManager.Request =
-                        DownloadManager.Request(Uri.parse(audioUrl))
-                            .setTitle("Audio") // Title of the Download Notification
-                            .setDescription("Downloading") // Description of the Download Notification
-                            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE) // Visibility of the download Notification
-                            .setDestinationUri(Uri.fromFile(audioDir))
-                            .setAllowedOverMetered(true) // Set if download is allowed on Mobile network
-                            .setAllowedOverRoaming(true) //
-                    val downloadManager: DownloadManager =
-                        applicationContext.getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-                    downloadManager.enqueue(request)
-                } catch (e: Exception) {
+            if (downloadType == "video") {
+                if (id == videoDownloadId) {
+                    audioDownloadId = downloadManagerRequest("Audio", audioDir, audioUrl)
                 }
-            } else if (downloadId == 0L) {
-                val libreTube = File(
-                    Environment.getExternalStoragePublicDirectory(DIRECTORY_DOWNLOADS), "LibreTube"
-                )
-                if (!libreTube.exists()) {
-                    libreTube.mkdirs()
-                    Log.e(TAG, "libreTube Directory make")
-                } else {
-                    Log.e(TAG, "libreTube Directory already have")
-                }
-                var command: String = when {
-                    videoUrl == "" -> {
-                        "-y -i $audioDir -c copy $libreTube/$videoId-audio$extension"
-                    }
-                    audioUrl == "" -> {
-                        "-y -i $videoDir -c copy $libreTube/$videoId-video$extension"
-                    }
-                    else -> {
-                        "-y -i $videoDir -i $audioDir -c copy $libreTube/${videoId}$extension"
-                    }
-                }
-                notification.setContentTitle("Muxing")
-                FFmpegKit.executeAsync(
-                    command,
-                    { session ->
-                        val state = session.state
-                        val returnCode = session.returnCode
-                        // CALLED WHEN SESSION IS EXECUTED
-                        Log.d(
-                            TAG,
-                            String.format(
-                                "FFmpeg process exited with state %s and rc %s.%s",
-                                state,
-                                returnCode,
-                                session.failStackTrace
-                            )
-                        )
-                        val path =
-                            applicationContext.getExternalFilesDir(DIRECTORY_DOWNLOADS)
-                        val folder_main = ".tmp"
-                        val f = File(path, folder_main)
-                        f.deleteRecursively()
-                        if (returnCode.toString() != "0") {
-                            var builder = NotificationCompat.Builder(this@DownloadService, "failed")
-                                .setSmallIcon(R.drawable.ic_download)
-                                .setContentTitle(resources.getString(R.string.downloadfailed))
-                                .setContentText("failure")
-                                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                            createNotificationChannel()
-                            with(NotificationManagerCompat.from(this@DownloadService)) {
-                                // notificationId is a unique int for each notification that you must define
-                                notify(69, builder.build())
-                            }
-                        }
-                        stopForeground(true)
-                        stopService(Intent(this@DownloadService, DownloadService::class.java))
-                    }, {
-                    // CALLED WHEN SESSION PRINTS LOGS
-                    Log.e(TAG, it.message.toString())
-                }
-                ) {
-                    // CALLED WHEN SESSION GENERATES STATISTICS
-                    Log.e(TAG + "stat", it.time.toString())
-                    /*val progress = it.time/(10*duration!!)
-                    if (progress<1){
-                        notification
-                            .setProgress(progressMax, progress.toInt(), false)
-                        service.notify(1,notification.build())
-                    }*/
+                if (id == audioDownloadId) {
+                        convertDownloads()
+                    IS_DOWNLOAD_RUNNING = false
+                    stopForeground(true)
+                    stopService(Intent(this@DownloadService, DownloadService::class.java))
                 }
             }
         }
+    }
+
+    private fun convertDownloads(){
+        val libreTube = File(
+            Environment.getExternalStoragePublicDirectory(DIRECTORY_DOWNLOADS), "LibreTube"
+        )
+        if (!libreTube.exists()) {
+            libreTube.mkdirs()
+            Log.e(TAG, "libreTube Directory make")
+        } else {
+            Log.e(TAG, "libreTube Directory already have")
+        }
+
+        val outFile = File(libreTube, videoId)
+
+        val videoExtractor = MediaExtractor()
+        val videoInputStream = FileInputStream(videoDir)
+        videoExtractor.setDataSource(videoInputStream.fd)
+        videoExtractor.selectTrack(0) // Assuming only one track per file. Adjust code if this is not the case.
+        val videoFormat = videoExtractor.getTrackFormat(0)
+
+        val audioExtractor = MediaExtractor()
+        val audioInputStream = FileInputStream(audioDir)
+        audioExtractor.setDataSource(audioInputStream.fd)
+        audioExtractor.selectTrack(0) // Assuming only one track per file. Adjust code if this is not the case.
+        val audioFormat = audioExtractor.getTrackFormat(0)
+
+        // Init muxer
+        val muxer = MediaMuxer(outFile.toString(), MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        val videoIndex = muxer.addTrack(videoFormat)
+        val audioIndex = muxer.addTrack(audioFormat)
+        muxer.start()
+
+        // Prepare buffer for copying
+        val maxChunkSize = 1024 * 1024
+        val buffer = ByteBuffer.allocate(maxChunkSize)
+        val bufferInfo = MediaCodec.BufferInfo()
+
+        // Copy Video
+        while (true) {
+            val chunkSize = videoExtractor.readSampleData(buffer, 0)
+
+            if (chunkSize > 0) {
+                bufferInfo.presentationTimeUs = videoExtractor.sampleTime
+                bufferInfo.flags = MediaCodec.BUFFER_FLAG_SYNC_FRAME
+                bufferInfo.size = chunkSize
+
+                muxer.writeSampleData(videoIndex, buffer, bufferInfo)
+
+                videoExtractor.advance()
+
+            } else {
+                break
+            }
+        }
+
+        // Copy audio
+        while (true) {
+            val chunkSize = audioExtractor.readSampleData(buffer, 0)
+
+            if (chunkSize >= 0) {
+                bufferInfo.presentationTimeUs = audioExtractor.sampleTime
+                bufferInfo.flags = MediaCodec.BUFFER_FLAG_SYNC_FRAME
+                bufferInfo.size = chunkSize
+
+                muxer.writeSampleData(audioIndex, buffer, bufferInfo)
+                audioExtractor.advance()
+            } else {
+                break
+            }
+        }
+
+        // Cleanup
+        muxer.stop()
+        muxer.release()
+
+        videoExtractor.release()
+        audioExtractor.release()
     }
 
     private fun createNotificationChannel() {
