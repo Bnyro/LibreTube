@@ -16,49 +16,65 @@ import com.github.libretube.api.RetrofitInstance
 import com.github.libretube.api.obj.Login
 import com.github.libretube.api.obj.Token
 import com.github.libretube.constants.IntentData
+import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.databinding.DialogLoginBinding
 import com.github.libretube.extensions.TAG
 import com.github.libretube.extensions.toastFromMainDispatcher
+import com.github.libretube.helpers.ContextHelper
+import com.github.libretube.helpers.IntentHelper
 import com.github.libretube.helpers.PreferenceHelper
+import com.github.libretube.ui.base.BaseActivity
 import com.github.libretube.ui.preferences.InstanceSettings.Companion.INSTANCE_DIALOG_REQUEST_KEY
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import retrofit2.HttpException
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 class LoginDialog : DialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val binding = DialogLoginBinding.inflate(layoutInflater)
 
-        return MaterialAlertDialogBuilder(requireContext())
+        val dialogBuilder = MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.login)
             .setPositiveButton(R.string.login, null)
             .setNegativeButton(R.string.register, null)
             .setView(binding.root)
+
+        val oidcProviders = PreferenceHelper.getStringSet(PreferenceKeys.INSTANCE_OIDC_PROVIDERS, setOf())
+        if (oidcProviders.isNotEmpty()) {
+            dialogBuilder.setNeutralButton(R.string.oidc, null)
+        }
+
+        return dialogBuilder
             .show()
             .apply {
                 getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener {
-                    val email = binding.username.text?.toString()
+                    val username = binding.username.text?.toString()
                     val password = binding.password.text?.toString()
 
-                    if (!email.isNullOrEmpty() && !password.isNullOrEmpty()) {
-                        signIn(email, password)
+                    if (!username.isNullOrEmpty() && !password.isNullOrEmpty()) {
+                        signIn(username, password)
                     } else {
                         Toast.makeText(context, R.string.empty, Toast.LENGTH_SHORT).show()
                     }
                 }
                 getButton(DialogInterface.BUTTON_NEGATIVE).setOnClickListener {
-                    val email = binding.username.text?.toString().orEmpty()
+                    val username = binding.username.text?.toString().orEmpty()
                     val password = binding.password.text?.toString().orEmpty()
 
-                    if (isEmail(email)) {
-                        showPrivacyAlertDialog(email, password)
-                    } else if (email.isNotEmpty() && password.isNotEmpty()) {
-                        signIn(email, password, true)
+                    if (isEmail(username)) {
+                        showPrivacyAlertDialog(username, password)
+                    } else if (username.isNotEmpty() && password.isNotEmpty()) {
+                        signIn(username, password, true)
                     } else {
                         Toast.makeText(context, R.string.empty, Toast.LENGTH_SHORT).show()
                     }
+                }
+                getButton(DialogInterface.BUTTON_NEUTRAL)?.setOnClickListener {
+                    showOidcProviderDialog(oidcProviders.toList())
                 }
             }
     }
@@ -94,7 +110,7 @@ class LoginDialog : DialogFragment() {
                 if (createNewAccount) R.string.registered else R.string.loggedIn
             )
 
-            PreferenceHelper.setToken(response.token)
+            PreferenceHelper.setToken(response.token, false)
             PreferenceHelper.setUsername(login.username)
 
             withContext(Dispatchers.Main) {
@@ -115,6 +131,29 @@ class LoginDialog : DialogFragment() {
                 signIn(email, password, true)
             }
             .setPositiveButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun showOidcProviderDialog(oidcProviders: List<String>) {
+        var selectedProviderIndex = 0
+
+        val appContext = requireContext().applicationContext
+        val fragmentManager = ContextHelper.unwrapActivity<BaseActivity>(requireContext())
+            .supportFragmentManager
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.oidc_login)
+            .setSingleChoiceItems(oidcProviders.toTypedArray(), selectedProviderIndex) { _, selected ->
+                selectedProviderIndex = selected
+            }
+            .setPositiveButton(R.string.login) { _, _ ->
+                val provider = oidcProviders[selectedProviderIndex]
+                val redirectUrl = URLEncoder.encode("${appContext.packageName}://callback", StandardCharsets.UTF_8)
+                val oidcUrl = "${RetrofitInstance.authUrl}/oidc/${provider}/login?redirect=${redirectUrl}"
+                IntentHelper.openLinkFromHref(appContext, fragmentManager, oidcUrl, forceDefaultOpen = true)
+
+                this@LoginDialog.dismiss()
+            }
+            .setNegativeButton(R.string.cancel, null)
             .show()
     }
 

@@ -16,11 +16,11 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 class LogoutDialog : DialogFragment() {
     @SuppressLint("SetTextI18n")
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val user = PreferenceHelper.getUsername()
+        val username = PreferenceHelper.getUsername().takeIf { it.isNotEmpty() }
 
         return MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.logout)
-            .setMessage(getString(R.string.already_logged_in) + " ($user)")
+            .setMessage(getString(R.string.already_logged_in) + username?.let { " ($it)" }.orEmpty())
             .setPositiveButton(R.string.logout) { _, _ ->
                 Toast.makeText(context, R.string.loggedout, Toast.LENGTH_SHORT).show()
 
