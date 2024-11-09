@@ -1,11 +1,14 @@
 package com.github.libretube.ui.activities
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.commit
 import androidx.fragment.app.replace
 import com.github.libretube.R
 import com.github.libretube.databinding.ActivitySettingsBinding
+import com.github.libretube.extensions.toastFromMainThread
+import com.github.libretube.helpers.PreferenceHelper
 import com.github.libretube.ui.base.BaseActivity
 import com.github.libretube.ui.preferences.InstanceSettings
 import com.github.libretube.ui.preferences.MainSettings
@@ -34,6 +37,20 @@ class SettingsActivity : BaseActivity() {
     fun goToMainSettings() {
         redirectTo<MainSettings>()
         changeTopBarText(getString(R.string.settings))
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+
+        val sessionId = intent.data?.getQueryParameter("session")
+        if (sessionId == null) {
+            this.toastFromMainThread(R.string.error)
+            return
+
+        }
+
+        PreferenceHelper.setToken(sessionId, true)
+        recreate()
     }
 
     private fun handleRedirect() {

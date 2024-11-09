@@ -9,6 +9,7 @@ import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.SwitchPreferenceCompat
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.github.libretube.LibreTubeApp
 import com.github.libretube.R
 import com.github.libretube.api.InstanceHelper
 import com.github.libretube.api.RetrofitInstance
@@ -18,6 +19,7 @@ import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.databinding.SimpleOptionsRecyclerBinding
 import com.github.libretube.db.DatabaseHolder.Database
 import com.github.libretube.extensions.toastFromMainDispatcher
+import com.github.libretube.helpers.IntentHelper
 import com.github.libretube.helpers.PreferenceHelper
 import com.github.libretube.ui.adapters.InstancesAdapter
 import com.github.libretube.ui.base.BasePreferenceFragment
@@ -36,9 +38,6 @@ class InstanceSettings : BasePreferenceFragment() {
     override val titleResourceId: Int = R.string.instance
     private val token get() = PreferenceHelper.getToken()
     private var instances = mutableListOf<PipedInstance>()
-    private val authInstanceToggle get() = findPreference<SwitchPreferenceCompat>(
-        PreferenceKeys.AUTH_INSTANCE_TOGGLE
-    )!!
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.instance_settings, rootKey)
@@ -66,15 +65,21 @@ class InstanceSettings : BasePreferenceFragment() {
             }
         }
 
+        instancePref.setOnPreferenceChangeListener { _, _ ->
+            if (!authInstanceToggle.isChecked) {
+                logoutAndUpdateAccountPrefVisibilities()
+            }
+            true
+        }
+
         authInstance.setOnPreferenceChangeListener { _, _ ->
-            RetrofitInstance.lazyMgr.reset()
-            logoutAndUpdateUI()
+            logoutAndUpdateAccountPrefVisibilities()
             true
         }
 
         authInstanceToggle.setOnPreferenceChangeListener { _, _ ->
-            RetrofitInstance.lazyMgr.reset()
-            logoutAndUpdateUI()
+            logoutAndUpdateAccountPrefVisibilities()
+            resetForNewInstance()
             true
         }
 
@@ -109,11 +114,9 @@ class InstanceSettings : BasePreferenceFragment() {
             val isLoggedIn = resultBundle.getBoolean(IntentData.loginTask)
             val isLoggedOut = resultBundle.getBoolean(IntentData.logoutTask)
             if (isLoggedIn) {
-                login?.isVisible = false
-                logout?.isVisible = true
-                deleteAccount?.isEnabled = true
+                updateAccountPrefVisibilities(true)
             } else if (isLoggedOut) {
-                logoutAndUpdateUI()
+                logoutAndUpdateAccountPrefVisibilities()
             }
         }
 
@@ -128,8 +131,15 @@ class InstanceSettings : BasePreferenceFragment() {
         }
 
         deleteAccount?.setOnPreferenceClickListener {
-            DeleteAccountDialog()
-                .show(childFragmentManager, DeleteAccountDialog::class.java.name)
+            if (PreferenceHelper.isLoggedInWithOidc()) {
+                val authToken = PreferenceHelper.getToken()
+                val deleteUrl = "${RetrofitInstance.authUrl}/user/delete?session=${authToken}"
+                IntentHelper.openLinkFromHref(requireContext(), childFragmentManager, deleteUrl, forceDefaultOpen = true)
+                logoutAndUpdateAccountPrefVisibilities()
+            } else {
+                DeleteAccountDialog()
+                    .show(childFragmentManager, DeleteAccountDialog::class.java.name)
+            }
             true
         }
     }
@@ -202,20 +212,23 @@ class InstanceSettings : BasePreferenceFragment() {
             .show()
     }
 
-    private fun logoutAndUpdateUI() {
-        PreferenceHelper.setToken("")
+    private fun logoutAndUpdateAccountPrefVisibilities() {
+        PreferenceHelper.setToken("", false)
         Toast.makeText(context, getString(R.string.loggedout), Toast.LENGTH_SHORT).show()
-        findPreference<Preference>(PreferenceKeys.LOGIN_REGISTER)?.isVisible = true
-        findPreference<Preference>(PreferenceKeys.LOGOUT)?.isVisible = false
-        findPreference<Preference>(PreferenceKeys.DELETE_ACCOUNT)?.isEnabled = false
+        updateAccountPrefVisibilities(false)
     }
 
     private fun resetForNewInstance() {
-        if (!authInstanceToggle.isChecked) {
-            logoutAndUpdateUI()
-        }
         RetrofitInstance.lazyMgr.reset()
-        ActivityCompat.recreate(requireActivity())
+
+        // refresh the instance config (such as oidc providers, image proxy url)
+        (context?.applicationContext as? LibreTubeApp)?.fetchInstanceConfig()
+    }
+
+    private fun updateAccountPrefVisibilities(isLoggedIn: Boolean) {
+        findPreference<Preference>(PreferenceKeys.LOGIN_REGISTER)?.isVisible = !isLoggedIn
+        findPreference<Preference>(PreferenceKeys.LOGOUT)?.isVisible = isLoggedIn
+        findPreference<Preference>(PreferenceKeys.DELETE_ACCOUNT)?.isEnabled = isLoggedIn
     }
 
     companion object {

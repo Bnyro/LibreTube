@@ -8,6 +8,7 @@ object PreferenceKeys {
     // Authentications
     const val TOKEN = "token"
     const val USERNAME = "username"
+    const val OIDC = "oidc"
 
     // General
     const val LANGUAGE = "language"
@@ -143,6 +144,7 @@ object PreferenceKeys {
     const val LAST_WATCHED_FEED_TIME = "last_watched_feed_time"
     const val AUTH_PREF_FILE = "auth"
     const val IMAGE_PROXY_URL = "image_proxy_url"
+    const val INSTANCE_OIDC_PROVIDERS = "instance_oidc_providers"
     const val SELECTED_CHANNEL_GROUP = "selected_channel_group"
     const val SELECTED_DOWNLOAD_SORT_TYPE = "selected_download_sort_type"
 }

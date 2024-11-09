@@ -85,8 +85,15 @@ object PreferenceHelper {
         return authSettings.getString(PreferenceKeys.TOKEN, "")!!
     }
 
-    fun setToken(newValue: String) {
-        authSettings.edit { putString(PreferenceKeys.TOKEN, newValue) }
+    fun isLoggedInWithOidc(): Boolean {
+        return authSettings.getBoolean(PreferenceKeys.OIDC, false)
+    }
+
+    fun setToken(token: String, isOidc: Boolean) {
+        authSettings.edit {
+            putString(PreferenceKeys.TOKEN, token)
+            putBoolean(PreferenceKeys.OIDC, isOidc)
+        }
     }
 
     fun getUsername(): String {

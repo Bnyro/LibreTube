@@ -4,12 +4,16 @@ import android.app.Application
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.work.ExistingPeriodicWorkPolicy
+import com.github.libretube.api.RetrofitInstance
+import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.helpers.ImageHelper
 import com.github.libretube.helpers.NotificationHelper
 import com.github.libretube.helpers.PreferenceHelper
-import com.github.libretube.helpers.ProxyHelper
 import com.github.libretube.helpers.ShortcutHelper
 import com.github.libretube.util.ExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class LibreTubeApp : Application() {
     override fun onCreate() {
@@ -42,7 +46,7 @@ class LibreTubeApp : Application() {
         /**
          * Fetch the image proxy URL for local playlists and the watch history
          */
-        ProxyHelper.fetchProxyUrl()
+        fetchInstanceConfig()
 
         /**
          * Handler for uncaught exceptions
@@ -55,6 +59,32 @@ class LibreTubeApp : Application() {
          * Dynamically create App Shortcuts
          */
         ShortcutHelper.createShortcuts(this)
+    }
+
+    fun fetchInstanceConfig() {
+        val isAuthSameApi = RetrofitInstance.apiUrl == RetrofitInstance.authUrl
+
+        CoroutineScope(Dispatchers.IO).launch {
+            runCatching {
+                val config = RetrofitInstance.api.getConfig()
+                config.imageProxyUrl?.let {
+                    PreferenceHelper.putString(PreferenceKeys.IMAGE_PROXY_URL, it)
+                }
+                if (isAuthSameApi) PreferenceHelper
+                    .putStringSet(
+                        PreferenceKeys.INSTANCE_OIDC_PROVIDERS,
+                        config.oidcProviders.toSet()
+                    )
+            }
+            if (!isAuthSameApi) runCatching {
+                val config = RetrofitInstance.authApi.getConfig()
+                PreferenceHelper
+                    .putStringSet(
+                        PreferenceKeys.INSTANCE_OIDC_PROVIDERS,
+                        config.oidcProviders.toSet()
+                    )
+            }
+        }
     }
 
     /**

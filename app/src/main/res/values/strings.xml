@@ -536,6 +536,9 @@
     <string name="chapters_videoHighlight">Video Highlight</string>
     <string name="player_channel_name">Player Service</string>
     <string name="player_channel_description">Shows a notification when playing</string>
+    <string name="oidc">OIDC</string>
+    <string name="oidc_login">Login with OIDC</string>
+
     <!-- Relative time formatting strings (remove when setting the minSdk to 24) -->
     <plurals name="years_ago">
         <item quantity="one">%d year ago</item>

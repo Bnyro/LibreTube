@@ -40,7 +40,7 @@ class AdvancedSettings : BasePreferenceFragment() {
                 PreferenceHelper.clearPreferences()
 
                 // clear login token
-                PreferenceHelper.setToken("")
+                PreferenceHelper.setToken("", false)
 
                 ActivityCompat.recreate(requireActivity())
             }
