@@ -33,6 +33,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 class InstanceSettings : BasePreferenceFragment() {
     override val titleResourceId: Int = R.string.instance
@@ -133,9 +135,19 @@ class InstanceSettings : BasePreferenceFragment() {
         deleteAccount?.setOnPreferenceClickListener {
             if (PreferenceHelper.isLoggedInWithOidc()) {
                 val authToken = PreferenceHelper.getToken()
-                val deleteUrl = "${RetrofitInstance.authUrl}/user/delete?session=${authToken}"
-                IntentHelper.openLinkFromHref(requireContext(), childFragmentManager, deleteUrl, forceDefaultOpen = true)
-                logoutAndUpdateAccountPrefVisibilities()
+                val redirectUrl = URLEncoder.encode(
+                    "${appContext.packageName}://callback",
+                    StandardCharsets.UTF_8
+                )
+                val oidcDeleteUrl =
+                    "${RetrofitInstance.authUrl}/user/delete?session=${authToken}&redirect=${redirectUrl}"
+
+                IntentHelper.openLinkFromHref(
+                    requireContext(),
+                    childFragmentManager,
+                    oidcDeleteUrl,
+                    forceDefaultOpen = true
+                )
             } else {
                 DeleteAccountDialog()
                     .show(childFragmentManager, DeleteAccountDialog::class.java.name)
@@ -181,7 +193,11 @@ class InstanceSettings : BasePreferenceFragment() {
     }
 
     override fun onDisplayPreferenceDialog(preference: Preference) {
-        if (preference.key in arrayOf(PreferenceKeys.FETCH_INSTANCE, PreferenceKeys.AUTH_INSTANCE)) {
+        if (preference.key in arrayOf(
+                PreferenceKeys.FETCH_INSTANCE,
+                PreferenceKeys.AUTH_INSTANCE
+            )
+        ) {
             showInstanceSelectionDialog(preference as ListPreference)
         } else {
             super.onDisplayPreferenceDialog(preference)

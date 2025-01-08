@@ -43,13 +43,15 @@ class SettingsActivity : BaseActivity() {
         super.onNewIntent(intent)
 
         val sessionId = intent.data?.getQueryParameter("session")
-        if (sessionId == null) {
+        val deletedUserBool = intent.data?.getQueryParameter("deleted")
+        if (sessionId == null && deletedUserBool == null) {
             this.toastFromMainThread(R.string.error)
             return
-
         }
 
-        PreferenceHelper.setToken(sessionId, true)
+        if (deletedUserBool?.lowercase() == "true") PreferenceHelper.setToken("", false)
+        else if (sessionId != null) PreferenceHelper.setToken(sessionId, true)
+
         recreate()
     }
 

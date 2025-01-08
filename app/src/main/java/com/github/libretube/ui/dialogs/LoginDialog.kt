@@ -43,7 +43,8 @@ class LoginDialog : DialogFragment() {
             .setNegativeButton(R.string.register, null)
             .setView(binding.root)
 
-        val oidcProviders = PreferenceHelper.getStringSet(PreferenceKeys.INSTANCE_OIDC_PROVIDERS, setOf())
+        val oidcProviders =
+            PreferenceHelper.getStringSet(PreferenceKeys.INSTANCE_OIDC_PROVIDERS, setOf())
         if (oidcProviders.isNotEmpty()) {
             dialogBuilder.setNeutralButton(R.string.oidc, null)
         }
@@ -142,15 +143,27 @@ class LoginDialog : DialogFragment() {
             .supportFragmentManager
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.oidc_login)
-            .setSingleChoiceItems(oidcProviders.toTypedArray(), selectedProviderIndex) { _, selected ->
+            .setSingleChoiceItems(
+                oidcProviders.toTypedArray(),
+                selectedProviderIndex
+            ) { _, selected ->
                 selectedProviderIndex = selected
             }
             .setPositiveButton(R.string.login) { _, _ ->
                 val provider = oidcProviders[selectedProviderIndex]
-                val redirectUrl = URLEncoder.encode("${appContext.packageName}://callback", StandardCharsets.UTF_8)
-                val oidcUrl = "${RetrofitInstance.authUrl}/oidc/${provider}/login?redirect=${redirectUrl}"
-                IntentHelper.openLinkFromHref(appContext, fragmentManager, oidcUrl, forceDefaultOpen = true)
+                val redirectUrl = URLEncoder.encode(
+                    "${appContext.packageName}://callback",
+                    StandardCharsets.UTF_8
+                )
+                val oidcUrl =
+                    "${RetrofitInstance.authUrl}/oidc/${provider}/login?redirect=${redirectUrl}"
 
+                IntentHelper.openLinkFromHref(
+                    appContext,
+                    fragmentManager,
+                    oidcUrl,
+                    forceDefaultOpen = true
+                )
                 this@LoginDialog.dismiss()
             }
             .setNegativeButton(R.string.cancel, null)
