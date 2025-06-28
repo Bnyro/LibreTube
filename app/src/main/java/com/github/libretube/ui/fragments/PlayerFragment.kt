@@ -35,6 +35,7 @@ import androidx.core.os.bundleOf
 import androidx.core.os.postDelayed
 import androidx.core.view.SoftwareKeyboardControllerCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
@@ -394,6 +395,19 @@ class PlayerFragment : Fragment(R.layout.fragment_player), OnlinePlayerOptions {
         _binding = FragmentPlayerBinding.bind(view)
         super.onViewCreated(view, savedInstanceState)
         SoftwareKeyboardControllerCompat(view).hide()
+
+        // manually apply additional padding for edge-to-edge compatibility
+        val insets =
+            WindowInsetsCompat.toWindowInsetsCompat(mainActivity.window.decorView.rootWindowInsets)
+        val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+        with (binding.root) {
+            setPadding(
+                paddingLeft,
+                paddingTop + systemBars.top,
+                paddingRight,
+                paddingBottom
+            )
+        }
 
         val playerData = requireArguments().parcelable<PlayerData>(IntentData.playerData)!!
         videoId = playerData.videoId
@@ -774,7 +788,10 @@ class PlayerFragment : Fragment(R.layout.fragment_player), OnlinePlayerOptions {
     }
 
     private fun updateMaxSheetHeight() {
-        val maxHeight = binding.root.height - binding.player.height
+        val insets =
+            WindowInsetsCompat.toWindowInsetsCompat(mainActivity.window.decorView.rootWindowInsets)
+        val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+        val maxHeight = binding.root.height - (binding.player.height + systemBars.top + systemBars.bottom)
         commonPlayerViewModel.maxSheetHeightPx = maxHeight
         chaptersViewModel.maxSheetHeightPx = maxHeight
     }
