@@ -1,5 +1,6 @@
 package com.github.libretube.api.ltsync.obj
 
+import com.github.libretube.api.obj.StreamItem
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -25,4 +26,16 @@ data class CreateVideo (
     @SerialName(value = "uploader")
     val uploader: Channel
 ) {
+    fun toStreamItem(): StreamItem = StreamItem(
+        url = id,
+        title = title,
+        type = StreamItem.TYPE_STREAM,
+        uploaded = uploadDate,
+        thumbnail = thumbnailUrl,
+        uploaderUrl = uploader.id,
+        duration = duration.toLong(),
+        uploaderVerified = uploader.verified,
+        uploaderAvatar = uploader.avatar,
+    )
+
 }
